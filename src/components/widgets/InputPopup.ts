@@ -14,6 +14,7 @@ import { boxChars, PhisicalValues, visibleLength } from "../Utils.js"
  * @prop {boolean} [visible] - If the popup is visible.
  * @prop {string} [placeholder] - Optional placeholder to show if empty
  * @prop {number} [maxLen] - Optional max length of the input (default 20). Set to 0 for no limit (not recommended). Since v3.4.0
+ * @prop {boolean} [password] - If the input is a password, the value will be masked with asterisks.
  *
  * @export
  * @interface InputPopupConfig
@@ -27,6 +28,7 @@ export interface InputPopupConfig {
     visible?: boolean;
     placeholder?: string;
     maxLen?: number;
+    password?: boolean;
 }
 
 /**
@@ -64,6 +66,7 @@ export class InputPopup extends EventEmitter {
         this.draw(); this.CM.refresh()
     }, 500)
     private numeric: boolean
+    private password: boolean
     private visible: boolean
     private marginTop: number
     private parsingMouseFrame = false
@@ -80,7 +83,7 @@ export class InputPopup extends EventEmitter {
 
     public constructor(config: InputPopupConfig) {
         if (!config) throw new Error("InputPopup config is required")
-        const { id, title, value, numeric, visible = false } = config
+        const { id, title, value, numeric, visible = false, password = false } = config
         if (!id) throw new Error("InputPopup id is required")
         if (!title) throw new Error("InputPopup title is required")
         if (value === undefined) throw new Error("InputPopup value is required")
@@ -92,6 +95,7 @@ export class InputPopup extends EventEmitter {
         this.value = value
         this.cursorPos = 0
         this.numeric = numeric || false
+        this.password = password
         this.visible = visible
         this.marginTop = 4
         this.offsetX = 0
@@ -104,6 +108,11 @@ export class InputPopup extends EventEmitter {
         }
         this.placeholder = config.placeholder
         this.maxLen = config.maxLen || 20
+
+        if (this.password && this.numeric) { // Passwords should be treated as text
+            this.numeric = false
+        }
+
         if (this.CM.popupCollection[this.id]) {
             this.CM.unregisterPopup(this)
             const message = `InputPopup ${this.id} already exists.`
@@ -482,7 +491,9 @@ export class InputPopup extends EventEmitter {
             
             if (index === 3) {
                 const isOddSecond = Math.round(Date.now() / 100) % 2
-                if (this.placeholder && this.placeholder.length && this.value.toString().length === 0) {
+                const valueStr = this.value.toString()
+
+                if (this.placeholder && this.placeholder.length && valueStr.length === 0) {
                     const totalLength = 2 + this.placeholder.length + 1; // 2 for "> ", 1 for cursor
                     this.CM.Screen.write(
                         { text: boxChars["normal"].vertical, style: { color: "white" } },
@@ -491,11 +502,12 @@ export class InputPopup extends EventEmitter {
                         { text: this.placeholder, style: { color: "gray" } },
                         { text: `${" ".repeat(windowWidth - totalLength)}${boxChars["normal"].vertical}`, style: { color: "white" } })
                 } else {
-                    const totalLength = 2 + this.value.toString().length + 1; // 2 for "> ", 1 for cursor
+                    const displayedStr = this.password ? "*".repeat(valueStr.length) : valueStr
+                    const totalLength = 2 + displayedStr.length + 1; // 2 for "> ", 1 for cursor
                     this.CM.Screen.write(
                         { text: boxChars["normal"].vertical, style: { color: "white" } },
                         { text: "> ", style: { color: "cyan" } },
-                        { text: this.value.toString(), style: { color: "white" } },
+                        { text: displayedStr, style: { color: "white" } },
                         { text: isOddSecond ? "█" : " ", style: { color: "white" } },
                         { text: `${" ".repeat(windowWidth - totalLength)}${boxChars["normal"].vertical}`, style: { color: "white" } })
                 }
